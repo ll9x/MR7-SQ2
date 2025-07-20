@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة المربع الخطير - نسخة محلية</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            background-color: #282c34;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            direction: rtl;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #61dafb;
+        }
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin: 20px auto;
+            max-width: 500px;
+        }
+        .cell {
+            aspect-ratio: 1;
+            background-color: #444;
+            border: 2px solid #666;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .cell:hover {
+            background-color: #555;
+        }
+        .cell.clicked {
+            background-color: #4CAF50;
+        }
+        .cell.danger {
+            background-color: #f44336;
+        }
+        button {
+            background-color: #61dafb;
+            border: none;
+            color: #282c34;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        #message {
+            margin: 20px 0;
+            font-size: 20px;
+            min-height: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>لعبة المربع الخطير</h1>
+        <div id="message">انقر على المربعات لكن احذر من المربع الأحمر!</div>
+        <div class="game-board" id="gameBoard"></div>
+        <div>
+            <button id="newGame">لعبة جديدة</button>
+            <button id="showDanger">إظهار المربع الخطير</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const gameBoard = document.getElementById('gameBoard');
+            const messageEl = document.getElementById('message');
+            const newGameBtn = document.getElementById('newGame');
+            const showDangerBtn = document.getElementById('showDanger');
+            
+            let dangerSquare = -1;
+            let score = 0;
+            const boardSize = 5;
+            
+            // إنشاء لوحة اللعب
+            function createBoard() {
+                gameBoard.innerHTML = '';
+                dangerSquare = Math.floor(Math.random() * (boardSize * boardSize));
+                
+                for (let i = 0; i < boardSize * boardSize; i++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.index = i;
+                    cell.addEventListener('click', handleCellClick);
+                    gameBoard.appendChild(cell);
+                }
+                
+                score = 0;
+                updateMessage(`النقاط: ${score}`);
+            }
+            
+            // التعامل مع النقر على الخلية
+            function handleCellClick(e) {
+                const cell = e.target;
+                const index = parseInt(cell.dataset.index);
+                
+                if (cell.classList.contains('clicked') || cell.classList.contains('danger')) {
+                    return;
+                }
+                
+                if (index === dangerSquare) {
+                    cell.classList.add('danger');
+                    gameBoard.querySelectorAll('.cell').forEach(cell => {
+                        cell.removeEventListener('click', handleCellClick);
+                    });
+                    updateMessage('انتهت اللعبة! المربع الأحمر هو الخاسر!');
+                } else {
+                    cell.classList.add('clicked');
+                    score++;
+                    updateMessage(`النقاط: ${score}`);
+                }
+            }
+            
+            // تحديث الرسالة
+            function updateMessage(msg) {
+                messageEl.textContent = msg;
+            }
+            
+            // إظهار المربع الخطير
+            function revealDanger() {
+                const cells = gameBoard.querySelectorAll('.cell');
+                cells[dangerSquare].classList.add('danger');
+                setTimeout(() => {
+                    cells[dangerSquare].classList.remove('danger');
+                }, 1000);
+            }
+            
+            // أحداث الأزرار
+            newGameBtn.addEventListener('click', createBoard);
+            showDangerBtn.addEventListener('click', revealDanger);
+            
+            // بدء اللعبة
+            createBoard();
+        });
+    </script>
+</body>
+</html>

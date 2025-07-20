@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Danger Square Game</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            background-color: #282c34;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column;
+        }
+        .screen {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            max-width: 800px;
+            padding: 20px;
+        }
+        #welcome-screen {
+            display: flex;
+        }
+        #game-title {
+            font-size: 32px;
+            margin-bottom: 20px;
+        }
+        #welcome-image {
+            width: 200px;
+            height: auto;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s, transform 0.2s;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+            transform: scale(1.05);
+        }
+        input {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        #board, #game-board {
+            display: grid;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px auto;
+        }
+        #board div, #game-board div {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background-color: #007bff;
+            border-radius: 10px;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        #board div:hover, #game-board div:hover {
+            transform: scale(1.1);
+        }
+        #board div.selected {
+            background-color: red !important;
+        }
+        #game-board div.clicked {
+            background-color: green !important;
+            pointer-events: none;
+        }
+        #game-board div.danger {
+            background-color: #007bff;
+        }
+        #game-board div.lost {
+            background-color: red !important;
+        }
+        .message {
+            font-size: 24px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+        #players-list {
+            margin: 20px 0;
+            text-align: left;
+        }
+        #room-id-display {
+            font-size: 20px;
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #444;
+            border-radius: 5px;
+        }
+        #copy-room-id {
+            background-color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <!-- Welcome Screen -->
+    <div id="welcome-screen" class="screen">
+        <h1 id="game-title">Online Danger Square Game</h1>
+        <img id="welcome-image" src="welcome-image.png" alt="Welcome Image">
+        <p>Welcome to the Online Danger Square Game!</p>
+        <button id="create-session-btn">Create Session</button>
+        <button id="join-session-btn">Join Session</button>
+    </div>
+
+    <!-- Create Session Screen -->
+    <div id="create-session-screen" class="screen">
+        <h2>Create Game Session</h2>
+        <div>
+            <label for="host-name">Your Name:</label>
+            <input type="text" id="host-name" placeholder="Enter your name">
+        </div>
+        <div>
+            <label for="board-size-input">Number of Squares:</label>
+            <input type="number" id="board-size-input" min="2" max="25" value="9">
+        </div>
+        <button id="create-session-confirm">Create Session</button>
+        <button id="back-to-welcome-from-create">Back</button>
+    </div>
+
+    <!-- Join Session Screen -->
+    <div id="join-session-screen" class="screen">
+        <h2>Join Game Session</h2>
+        <div>
+            <label for="player-name">Your Name:</label>
+            <input type="text" id="player-name" placeholder="Enter your name">
+        </div>
+        <div>
+            <label for="session-id">Session ID:</label>
+            <input type="text" id="session-id" placeholder="Enter session ID">
+        </div>
+        <button id="join-session-confirm">Join Session</button>
+        <button id="back-to-welcome-from-join">Back</button>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div id="lobby-screen" class="screen">
+        <h2>Game Lobby</h2>
+        <div id="room-id-display">Session ID: <span id="session-id-text"></span> 
+            <button id="copy-session-id">Copy</button>
+        </div>
+        <div id="players-list">
+            <h3>Players:</h3>
+            <ul id="players-ul"></ul>
+        </div>
+        <div id="lobby-message" class="message"></div>
+        <button id="start-game-btn" style="display: none;">Start Game</button>
+        <button id="leave-lobby-btn">Leave Lobby</button>
+    </div>
+
+    <!-- Choose Danger Square Screen -->
+    <div id="danger-square-screen" class="screen">
+        <h2>Select Danger Square</h2>
+        <p>Click on a square to select it as the danger square</p>
+        <div id="board"></div>
+        <button id="confirm-danger-square">Confirm Selection</button>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+        <h2>Danger Square Game</h2>
+        <div id="game-info">
+            <p>Click the squares, avoid the danger square!</p>
+            <p id="current-player"></p>
+            <p id="clicked-count"></p>
+        </div>
+        <div id="game-board"></div>
+        <div id="game-message" class="message"></div>
+        <button id="restart-game-btn" style="display: none;">Play Again</button>
+        <button id="leave-game-btn">Leave Game</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/game.js"></script>
+    <script>
+        // DOM Elements
+        const screens = document.querySelectorAll('.screen');
+        const welcomeScreen = document.getElementById('welcome-screen');
+        const createSessionScreen = document.getElementById('create-session-screen');
+        const joinSessionScreen = document.getElementById('join-session-screen');
+        const lobbyScreen = document.getElementById('lobby-screen');
+        const dangerSquareScreen = document.getElementById('danger-square-screen');
+        const gameScreen = document.getElementById('game-screen');
+
+        // Buttons
+        const createSessionBtn = document.getElementById('create-session-btn');
+        const joinSessionBtn = document.getElementById('join-session-btn');
+        const createSessionConfirmBtn = document.getElementById('create-session-confirm');
+        const joinSessionConfirmBtn = document.getElementById('join-session-confirm');
+        const backToWelcomeFromCreateBtn = document.getElementById('back-to-welcome-from-create');
+        const backToWelcomeFromJoinBtn = document.getElementById('back-to-welcome-from-join');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const leaveLobbyBtn = document.getElementById('leave-lobby-btn');
+        const confirmDangerSquareBtn = document.getElementById('confirm-danger-square');
+        const restartGameBtn = document.getElementById('restart-game-btn');
+        const leaveGameBtn = document.getElementById('leave-game-btn');
+        const copySessionIdBtn = document.getElementById('copy-session-id');
+
+        // Inputs
+        const hostNameInput = document.getElementById('host-name');
+        const playerNameInput = document.getElementById('player-name');
+        const sessionIdInput = document.getElementById('session-id');
+        const boardSizeInput = document.getElementById('board-size-input');
+
+        // Display elements
+        const sessionIdText = document.getElementById('session-id-text');
+        const playersUl = document.getElementById('players-ul');
+        const lobbyMessage = document.getElementById('lobby-message');
+        const gameMessage = document.getElementById('game-message');
+        const currentPlayer = document.getElementById('current-player');
+        const clickedCount = document.getElementById('clicked-count');
+
+        // Game elements
+        const board = document.getElementById('board');
+        const gameBoard = document.getElementById('game-board');
+
+        // Socket.io connection
+        const socket = io();
+        let sessionId = '';
+        let isHost = false;
+        let playerName = '';
+        let boardSize = 9;
+        let dangerSquareIndex = -1;
+        let currentTurnPlayerId = '';
+
+        // Switch between screens
+        function showScreen(screen) {
+            screens.forEach(s => s.style.display = 'none');
+            screen.style.display = 'flex';
+        }
+
+        // Event listeners
+        createSessionBtn.addEventListener('click', () => showScreen(createSessionScreen));
+        joinSessionBtn.addEventListener('click', () => showScreen(joinSessionScreen));
+        
+        backToWelcomeFromCreateBtn.addEventListener('click', () => showScreen(welcomeScreen));
+        backToWelcomeFromJoinBtn.addEventListener('click', () => showScreen(welcomeScreen));
+        
+        leaveLobbyBtn.addEventListener('click', () => {
+            socket.emit('leaveSession');
+            showScreen(welcomeScreen);
+        });
+        
+        leaveGameBtn.addEventListener('click', () => {
+            socket.emit('leaveSession');
+            showScreen(welcomeScreen);
+        });
+
+        copySessionIdBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(sessionIdText.textContent);
+            alert('Session ID copied to clipboard!');
+        });
+
+        createSessionConfirmBtn.addEventListener('click', () => {
+            const name = hostNameInput.value.trim();
+            const size = parseInt(boardSizeInput.value);
+            
+            if (!name) {
+                alert('Please enter your name');
+                return;
+            }
+            
+            if (isNaN(size) || size < 2 || size > 25) {
+                alert('Please enter a valid number between 2 and 25');
+                return;
+            }
+            
+            playerName = name;
+            boardSize = size;
+            isHost = true;
+            socket.emit('createSession', { 
+                playerName: name,
+                boardSize: size
+            });
+        });
+
+        joinSessionConfirmBtn.addEventListener('click', () => {
+            const name = playerNameInput.value.trim();
+            const session = sessionIdInput.value.trim().toUpperCase();
+            
+            if (!name || !session) {
+                alert('Please enter both your name and session ID');
+                return;
+            }
+            
+            playerName = name;
+            socket.emit('joinSession', { 
+                sessionId: session, 
+                playerName: name 
+            });
+        });
+
+        startGameBtn.addEventListener('click', () => {
+            socket.emit('startGame');
+        });
+
+        confirmDangerSquareBtn.addEventListener('click', () => {
+            if (dangerSquareIndex === -1) {
+                alert('Please select a danger square');
+                return;
+            }
+            
+            socket.emit('selectDangerSquare', { squareIndex: dangerSquareIndex });
+        });
+
+        restartGameBtn.addEventListener('click', () => {
+            socket.emit('restartGame');
+        });
+
+        // Socket.io event handlers
+        socket.on('sessionCreated', (data) => {
+            sessionId = data.sessionId;
+            boardSize = data.boardSize;
+            sessionIdText.textContent = sessionId;
+            updatePlayersList([{ id: socket.id, name: playerName }]);
+            lobbyMessage.textContent = 'Waiting for players to join...';
+            startGameBtn.style.display = isHost ? 'block' : 'none';
+            showScreen(lobbyScreen);
+        });
+
+        socket.on('error', (data) => {
+            alert(data.message);
+        });
+
+        socket.on('playerJoined', (data) => {
+            updatePlayersList(data.players);
+            lobbyMessage.textContent = `${data.playerName} joined the room!`;
+        });
+
+        socket.on('playerLeft', (data) => {
+            updatePlayersList(data.players);
+        });
+
+        socket.on('newHost', (data) => {
+            isHost = socket.id === data.hostId;
+            startGameBtn.style.display = isHost ? 'block' : 'none';
+            if (isHost) {
+                lobbyMessage.textContent = 'You are now the host. You can start the game.';
+            }
+        });
+
+        socket.on('gameStarted', (data) => {
+            boardSize = data.boardSize;
+            createBoard(board, boardSize, handleDangerSquareSelection);
+            showScreen(dangerSquareScreen);
+        });
+
+        socket.on('dangerSquareSelected', (data) => {
+            createGameBoard(gameBoard, data.boardSize);
+            currentTurnPlayerId = socket.id; // First player to join starts first
+            currentPlayer.textContent = `Your turn, ${playerName}!`;
+            showScreen(gameScreen);
+        });
+
+        socket.on('squareClicked', (data) => {
+            if (data.playerId === socket.id) return;
+            
+            const square = gameBoard.children[data.squareIndex];
+            square.classList.add('clicked');
+            clickedCount.textContent = `Squares clicked: ${data.clickedCount}/${boardSize-1}`;
+            
+            // It's now this player's turn
+            currentTurnPlayerId = socket.id;
+            currentPlayer.textContent = `Your turn, ${playerName}!`;
+        });
+
+        socket.on('gameOver', (data) => {
+            const square = gameBoard.children[data.dangerSquare];
+            square.classList.add('lost');
+            
+            if (socket.id === data.loser) {
+                gameMessage.textContent = 'You hit the danger square! Game over!';
+                gameMessage.className = 'message error';
+            } else {
+                gameMessage.textContent = `${data.loserName} hit the danger square! Game over!`;
+                gameMessage.className = 'message error';
+            }
+            
+            restartGameBtn.style.display = isHost ? 'block' : 'none';
+        });
+
+        socket.on('gameWon', (data) => {
+            if (socket.id === data.winner) {
+                gameMessage.textContent = 'Congratulations! You clicked all safe squares!';
+                gameMessage.className = 'message success';
+            } else {
+                gameMessage.textContent = `Congratulations to ${data.winnerName} for winning!`;
+                gameMessage.className = 'message success';
+            }
+            
+            restartGameBtn.style.display = isHost ? 'block' : 'none';
+        });
+
+        socket.on('gameRestarted', () => {
+            showScreen(lobbyScreen);
+            gameMessage.textContent = '';
+            lobbyMessage.textContent = 'Game restarted. Host can start a new game.';
+        });
+
+        // Helper functions
+        function updatePlayersList(players) {
+            playersUl.innerHTML = '';
+            players.forEach(player => {
+                const li = document.createElement('li');
+                li.textContent = player.name + (player.id === socket.id ? ' (You)' : '');
+                if (player.id === socket.id) {
+                    li.style.fontWeight = 'bold';
+                }
+                playersUl.appendChild(li);
+            });
+        }
+
+        function createBoard(container, size, clickHandler) {
+            container.innerHTML = '';
+            container.style.gridTemplateColumns = `repeat(${Math.ceil(Math.sqrt(size))}, 1fr)`;
+            
+            for (let i = 0; i < size; i++) {
+                const square = document.createElement('div');
+                square.dataset.index = i;
+                square.addEventListener('click', function() {
+                    container.querySelectorAll('div').forEach(div => div.classList.remove('selected'));
+                    this.classList.add('selected');
+                    dangerSquareIndex = i;
+                });
+                container.appendChild(square);
+            }
+        }
+
+        function createGameBoard(container, size) {
+            container.innerHTML = '';
+            container.style.gridTemplateColumns = `repeat(${Math.ceil(Math.sqrt(size))}, 1fr)`;
+            
+            for (let i = 0; i < size; i++) {
+                const square = document.createElement('div');
+                square.dataset.index = i;
+                square.addEventListener('click', handleSquareClick);
+                container.appendChild(square);
+            }
+            
+            clickedCount.textContent = `Squares clicked: 0/${size-1}`;
+        }
+
+        function handleSquareClick(event) {
+            if (currentTurnPlayerId !== socket.id) {
+                alert("Wait for your turn!");
+                return;
+            }
+            
+            const squareIndex = parseInt(event.target.dataset.index);
+            socket.emit('squareClicked', { squareIndex });
+            
+            event.target.classList.add('clicked');
+            currentTurnPlayerId = ''; // Wait for server to confirm
+        }
+
+        function handleDangerSquareSelection(event) {
+            board.querySelectorAll('div').forEach(div => div.classList.remove('selected'));
+            event.target.classList.add('selected');
+            dangerSquareIndex = parseInt(event.target.dataset.index);
+        }
+    </script>
+</body>
+</html>

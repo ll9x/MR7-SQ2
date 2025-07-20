@@ -1,0 +1,17 @@
+{
+  "name": "danger-square-game",
+  "version": "1.0.0",
+  "description": "Online Danger Square Game",
+  "main": "game.js",
+  "scripts": {
+    "start": "node game.js",
+    "dev": "nodemon game.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
