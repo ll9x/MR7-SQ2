@@ -163,6 +163,7 @@ io.on('connection', (socket) => {
                         loser: socket.id,
                         loserName: rooms[roomId].playerNames[socket.id],
                         lastPlayerStanding: true,
+                        squareIndex: squareIndex, // Include the danger square index
                         eliminatedPlayers: rooms[roomId].eliminatedPlayers,
                         finalRanking: [...rooms[roomId].eliminatedPlayers.reverse(), {
                             id: winnerId,

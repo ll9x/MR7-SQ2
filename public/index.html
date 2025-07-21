@@ -176,6 +176,23 @@
             100% { border-color: #ffc107; }
         }
         
+        @keyframes dangerPulse {
+            0% { 
+                box-shadow: 0 0 20px rgba(220, 53, 69, 0.8);
+                transform: scale(1.1);
+            }
+            100% { 
+                box-shadow: 0 0 30px rgba(220, 53, 69, 1);
+                transform: scale(1.15);
+            }
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        
         .player-status {
             margin-left: auto;
             font-size: 12px;
@@ -517,8 +534,33 @@
 
         socket.on('playerEliminated', (data) => {
             const square = gameBoard.children[data.squareIndex];
+            
+            // Make the danger square visible to ALL players with enhanced effects
             square.classList.add('lost');
-            square.style.backgroundColor = 'red'; // Make the danger square red
+            square.style.backgroundColor = '#dc3545'; // Bright red
+            square.style.border = '3px solid #721c24'; // Dark red border
+            square.style.boxShadow = '0 0 20px rgba(220, 53, 69, 0.8)'; // Red glow
+            square.style.transform = 'scale(1.1)'; // Slightly larger
+            square.innerHTML = '💀'; // Skull emoji to indicate danger
+            square.style.fontSize = '24px';
+            square.style.color = 'white';
+            square.style.fontWeight = 'bold';
+            
+            // Add pulsing animation
+            square.style.animation = 'dangerPulse 1s infinite alternate';
+            
+            // Add screen shake effect for dramatic impact
+            document.body.style.animation = 'shake 0.5s';
+            setTimeout(() => {
+                document.body.style.animation = '';
+            }, 500);
+            
+            // Try to play alert sound (if browser allows)
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmYdBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU5k9n1unEiBC13yO/eizEIHWq+8+OWT');
+                audio.volume = 0.3;
+                audio.play().catch(() => {});
+            } catch (e) {}
             
             // Update game data
             activePlayers = data.activePlayers || [];
@@ -557,10 +599,23 @@
             
             if (data.loser) {
                 // Someone won because they were the last player standing
-                const square = gameBoard.children[data.squareIndex];
-                if (square) {
-                    square.classList.add('lost');
-                    square.style.backgroundColor = 'red'; // Make the danger square red
+                // Find and highlight the danger square for ALL players
+                const dangerSquareIndex = data.squareIndex || eliminatedPlayers[eliminatedPlayers.length - 1]?.squareIndex;
+                if (dangerSquareIndex !== undefined) {
+                    const square = gameBoard.children[dangerSquareIndex];
+                    if (square) {
+                        // Make the danger square visible to ALL players with enhanced effects
+                        square.classList.add('lost');
+                        square.style.backgroundColor = '#dc3545'; // Bright red
+                        square.style.border = '3px solid #721c24'; // Dark red border
+                        square.style.boxShadow = '0 0 20px rgba(220, 53, 69, 0.8)'; // Red glow
+                        square.style.transform = 'scale(1.1)'; // Slightly larger
+                        square.innerHTML = '💀'; // Skull emoji to indicate danger
+                        square.style.fontSize = '24px';
+                        square.style.color = 'white';
+                        square.style.fontWeight = 'bold';
+                        square.style.animation = 'dangerPulse 1s infinite alternate';
+                    }
                 }
                 
                 if (socket.id === data.winner) {
