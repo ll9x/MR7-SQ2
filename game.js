@@ -23,9 +23,12 @@ io.on('connection', (socket) => {
             players: [socket.id],
             gameState: 'waiting',
             boardSize: data.boardSize || 9, // Default to 9 if not specified
+            maxPlayers: data.maxPlayers || 4, // Default to 4 if not specified
             dangerSquare: -1,
             clickedSquares: [],
-            playerNames: {}
+            playerNames: {},
+            activePlayers: [socket.id], // Players still in the game
+            currentTurn: 0 // Index of the player whose turn it is
         };
         
         socket.join(roomId);
@@ -35,7 +38,12 @@ io.on('connection', (socket) => {
         };
         
         rooms[roomId].playerNames[socket.id] = data.playerName;
-        io.to(roomId).emit('roomCreated', { roomId, host: socket.id, boardSize: rooms[roomId].boardSize });
+        io.to(roomId).emit('roomCreated', { 
+            roomId, 
+            host: socket.id, 
+            boardSize: rooms[roomId].boardSize,
+            maxPlayers: rooms[roomId].maxPlayers
+        });
     });
 
     socket.on('joinRoom', (data) => {
@@ -49,6 +57,12 @@ io.on('connection', (socket) => {
             socket.emit('error', { message: 'Game already started' });
             return;
         }
+        
+        // Check if room is full
+        if (rooms[roomId].players.length >= rooms[roomId].maxPlayers) {
+            socket.emit('error', { message: 'Room is full' });
+            return;
+        }
 
         socket.join(roomId);
         players[socket.id] = {
@@ -57,6 +71,7 @@ io.on('connection', (socket) => {
         };
         
         rooms[roomId].players.push(socket.id);
+        rooms[roomId].activePlayers.push(socket.id);
         rooms[roomId].playerNames[socket.id] = data.playerName;
         
         io.to(roomId).emit('playerJoined', { 
@@ -65,7 +80,8 @@ io.on('connection', (socket) => {
             players: rooms[roomId].players.map(id => ({
                 id,
                 name: rooms[roomId].playerNames[id]
-            }))
+            })),
+            maxPlayers: rooms[roomId].maxPlayers
         });
     });
 
@@ -73,21 +89,27 @@ io.on('connection', (socket) => {
         const roomId = players[socket.id]?.room;
         if (!roomId || rooms[roomId].host !== socket.id) return;
 
-        rooms[roomId].gameState = 'choosing';
-        rooms[roomId].boardSize = data.boardSize;
-        io.to(roomId).emit('gameStarted', { boardSize: data.boardSize });
+        // Select a random danger square
+        const boardSize = rooms[roomId].boardSize;
+        const randomDangerSquare = Math.floor(Math.random() * boardSize);
+        
+        rooms[roomId].gameState = 'playing';
+        rooms[roomId].dangerSquare = randomDangerSquare;
+        
+        // Set the first player's turn
+        rooms[roomId].currentTurn = 0;
+        const currentPlayerId = rooms[roomId].activePlayers[rooms[roomId].currentTurn];
+        
+        io.to(roomId).emit('gameStarted', { 
+            boardSize: boardSize,
+            currentPlayerId: currentPlayerId,
+            currentPlayerName: rooms[roomId].playerNames[currentPlayerId]
+        });
     });
 
-    socket.on('selectDangerSquare', (data) => {
-        const roomId = players[socket.id]?.room;
-        if (!roomId || rooms[roomId].gameState !== 'choosing') return;
-
-        rooms[roomId].dangerSquare = data.squareIndex;
-        rooms[roomId].gameState = 'playing';
-        io.to(roomId).emit('dangerSquareSelected', { 
-            dangerSquare: data.squareIndex,
-            boardSize: rooms[roomId].boardSize
-        });
+    // This event is no longer needed as danger square is selected randomly
+    socket.on('dangerSquareSelected', (data) => {
+        // Keeping this for backward compatibility, but it's not used anymore
     });
 
     socket.on('squareClicked', (data) => {
@@ -96,15 +118,53 @@ io.on('connection', (socket) => {
 
         const room = rooms[roomId];
         const playerName = room.playerNames[socket.id];
+        
+        // Check if it's this player's turn
+        const currentPlayerId = room.activePlayers[room.currentTurn];
+        if (socket.id !== currentPlayerId) {
+            socket.emit('error', { message: 'Not your turn' });
+            return;
+        }
 
-        if (data.squareIndex === room.dangerSquare) {
-            // Player hit the danger square
-            room.gameState = 'finished';
-            io.to(roomId).emit('gameOver', {
-                loser: socket.id,
-                loserName: playerName,
-                clickedSquares: room.clickedSquares
+        const squareIndex = data.squareIndex;
+        // Check if clicked square is the danger square
+        if (squareIndex === rooms[roomId].dangerSquare) {
+            // Get current player index before elimination
+            const currentPlayerIndex = rooms[roomId].activePlayers.indexOf(socket.id);
+            
+            // Player is eliminated
+            rooms[roomId].activePlayers = rooms[roomId].activePlayers.filter(id => id !== socket.id);
+            
+            // Check if only one player remains
+            if (rooms[roomId].activePlayers.length === 1) {
+                // Game over, we have a winner
+                const winner = rooms[roomId].activePlayers[0];
+                io.to(roomId).emit('gameWon', {
+                    winner: winner,
+                    winnerName: rooms[roomId].playerNames[winner],
+                    loser: socket.id,
+                    loserName: rooms[roomId].playerNames[socket.id],
+                    squareIndex: squareIndex // Send the danger square index
+                });
+                return;
+            }
+            
+            // Adjust currentTurn after player elimination
+            if (currentPlayerIndex <= rooms[roomId].currentTurn) {
+                rooms[roomId].currentTurn = Math.max(0, rooms[roomId].currentTurn - 1);
+            }
+            rooms[roomId].currentTurn = rooms[roomId].currentTurn % rooms[roomId].activePlayers.length;
+            const nextPlayerId = rooms[roomId].activePlayers[rooms[roomId].currentTurn];
+            
+            io.to(roomId).emit('playerEliminated', {
+                eliminatedId: socket.id,
+                eliminatedName: rooms[roomId].playerNames[socket.id],
+                squareIndex: squareIndex,
+                nextPlayerId: nextPlayerId,
+                nextPlayerName: rooms[roomId].playerNames[nextPlayerId],
+                remainingPlayers: rooms[roomId].activePlayers.length
             });
+            return;
         } else {
             // Safe square clicked
             if (!room.clickedSquares.includes(data.squareIndex)) {
@@ -119,11 +179,17 @@ io.on('connection', (socket) => {
                         clickedSquares: room.clickedSquares
                     });
                 } else {
+                    // Move to next player's turn
+                    room.currentTurn = (room.currentTurn + 1) % room.activePlayers.length;
+                    const nextPlayerId = room.activePlayers[room.currentTurn];
+                    
                     io.to(roomId).emit('squareClicked', {
                         playerId: socket.id,
                         playerName: playerName,
                         squareIndex: data.squareIndex,
-                        clickedCount: room.clickedSquares.length
+                        clickedCount: room.clickedSquares.length,
+                        nextPlayerId: nextPlayerId,
+                        nextPlayerName: room.playerNames[nextPlayerId]
                     });
                 }
             }
@@ -137,6 +203,8 @@ io.on('connection', (socket) => {
         rooms[roomId].gameState = 'waiting';
         rooms[roomId].dangerSquare = -1;
         rooms[roomId].clickedSquares = [];
+        rooms[roomId].activePlayers = [...rooms[roomId].players]; // Reset active players
+        rooms[roomId].currentTurn = 0;
         
         io.to(roomId).emit('gameRestarted');
     });
@@ -148,6 +216,12 @@ io.on('connection', (socket) => {
 
         if (rooms[roomId]) {
             rooms[roomId].players = rooms[roomId].players.filter(id => id !== socket.id);
+            
+            // Also remove from active players if game is in progress
+            if (rooms[roomId].activePlayers) {
+                rooms[roomId].activePlayers = rooms[roomId].activePlayers.filter(id => id !== socket.id);
+            }
+            
             delete rooms[roomId].playerNames[socket.id];
 
             if (rooms[roomId].players.length === 0) {
@@ -158,13 +232,16 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('newHost', { hostId: rooms[roomId].host });
             }
 
-            io.to(roomId).emit('playerLeft', { 
-                playerId: socket.id,
-                players: rooms[roomId].players.map(id => ({
-                    id,
-                    name: rooms[roomId].playerNames[id]
-                }))
-            });
+            // Only emit playerLeft if the room still exists
+            if (rooms[roomId]) {
+                io.to(roomId).emit('playerLeft', { 
+                    playerId: socket.id,
+                    players: rooms[roomId].players.map(id => ({
+                        id,
+                        name: rooms[roomId].playerNames[id]
+                    }))
+                });
+            }
         }
 
         delete players[socket.id];

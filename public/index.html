@@ -91,6 +91,12 @@
         }
         #game-board div.lost {
             background-color: red !important;
+            animation: pulse 1s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            100% { opacity: 1; }
         }
         .message {
             font-size: 24px;
@@ -123,7 +129,7 @@
     <!-- Welcome Screen -->
     <div id="welcome-screen" class="screen">
         <h1 id="game-title">Online Danger Square Game</h1>
-        <img id="welcome-image" src="welcome-image.png" alt="Welcome Image">
+        <h1 id="game-title">BY: Mostafa Alrawi</h1>
         <p>Welcome to the Online Danger Square Game!</p>
         <button id="create-room-btn">Create Room</button>
         <button id="join-room-btn">Join Room</button>
@@ -139,6 +145,10 @@
         <div>
             <label for="create-board-size">Number of Squares:</label>
             <input type="number" id="create-board-size" min="2" max="25" value="9">
+        </div>
+        <div>
+            <label for="max-players">Max Players:</label>
+            <input type="number" id="max-players" min="2" max="10" value="4">
         </div>
         <button id="create-room-confirm">Create Room</button>
         <button id="back-to-welcome-from-create">Back</button>
@@ -176,8 +186,8 @@
 
 
 
-    <!-- Choose Danger Square Screen -->
-    <div id="danger-square-screen" class="screen">
+    <!-- This screen is no longer used as danger square is selected randomly -->
+    <div id="danger-square-screen" class="screen" style="display: none;">
         <h2>Select Danger Square</h2>
         <p>Click on a square to select it as the danger square</p>
         <div id="board"></div>
@@ -281,6 +291,7 @@
         createRoomConfirmBtn.addEventListener('click', () => {
             const name = hostNameInput.value.trim();
             const size = parseInt(document.getElementById('create-board-size').value);
+            const maxPlayers = parseInt(document.getElementById('max-players').value);
             
             if (!name) {
                 alert('Please enter your name');
@@ -292,10 +303,15 @@
                 return;
             }
             
+            if (isNaN(maxPlayers) || maxPlayers < 2 || maxPlayers > 10) {
+                alert('Please enter a valid number of players between 2 and 10');
+                return;
+            }
+            
             playerName = name;
             isHost = true;
             boardSize = size;
-            socket.emit('createRoom', { playerName: name, boardSize: size });
+            socket.emit('createRoom', { playerName: name, boardSize: size, maxPlayers: maxPlayers });
         });
 
         joinRoomConfirmBtn.addEventListener('click', () => {
@@ -321,13 +337,9 @@
 
 
 
+        // This is no longer needed as danger square is selected randomly
         confirmDangerSquareBtn.addEventListener('click', () => {
-            if (dangerSquareIndex === -1) {
-                alert('Please select a danger square');
-                return;
-            }
-            
-            socket.emit('selectDangerSquare', { squareIndex: dangerSquareIndex });
+            // Keeping this for backward compatibility
         });
 
         restartGameBtn.addEventListener('click', () => {
@@ -368,51 +380,89 @@
 
         socket.on('gameStarted', (data) => {
             boardSize = data.boardSize;
-            createBoard(board, boardSize, handleDangerSquareSelection);
-            showScreen(dangerSquareScreen);
-        });
-
-        socket.on('dangerSquareSelected', (data) => {
             createGameBoard(gameBoard, data.boardSize);
-            currentTurnPlayerId = socket.id; // First player to join starts first
-            currentPlayer.textContent = `Your turn, ${playerName}!`;
+            currentTurnPlayerId = data.currentPlayerId;
+            
+            if (currentTurnPlayerId === socket.id) {
+                currentPlayer.textContent = `Your turn, ${playerName}!`;
+            } else {
+                currentPlayer.textContent = `${data.currentPlayerName}'s turn`;
+            }
+            
             showScreen(gameScreen);
         });
 
+        // This event is no longer needed as danger square is selected randomly
+        socket.on('dangerSquareSelected', (data) => {
+            // Keeping this for backward compatibility
+        });
+
         socket.on('squareClicked', (data) => {
-            if (data.playerId === socket.id) return;
-            
             const square = gameBoard.children[data.squareIndex];
             square.classList.add('clicked');
             clickedCount.textContent = `Squares clicked: ${data.clickedCount}/${boardSize-1}`;
             
-            // It's now this player's turn
-            currentTurnPlayerId = socket.id;
-            currentPlayer.textContent = `Your turn, ${playerName}!`;
+            // Update whose turn it is
+            currentTurnPlayerId = data.nextPlayerId;
+            
+            if (currentTurnPlayerId === socket.id) {
+                currentPlayer.textContent = `Your turn, ${playerName}!`;
+            } else {
+                currentPlayer.textContent = `${data.nextPlayerName}'s turn`;
+            }
         });
 
-        socket.on('gameOver', (data) => {
-            const square = gameBoard.children[data.dangerSquare];
+        socket.on('playerEliminated', (data) => {
+            const square = gameBoard.children[data.squareIndex];
             square.classList.add('lost');
+            square.style.backgroundColor = 'red'; // Make the danger square red
             
-            if (socket.id === data.loser) {
-                gameMessage.textContent = 'You hit the danger square! Game over!';
+            if (socket.id === data.eliminatedId) {
+                gameMessage.textContent = 'You hit the danger square! You are eliminated!';
                 gameMessage.className = 'message error';
             } else {
-                gameMessage.textContent = `${data.loserName} hit the danger square! Game over!`;
+                gameMessage.textContent = `${data.eliminatedName} hit the danger square and was eliminated! ${data.remainingPlayers} players remaining.`;
                 gameMessage.className = 'message error';
             }
             
-            restartGameBtn.style.display = isHost ? 'block' : 'none';
+            // Update whose turn it is
+            currentTurnPlayerId = data.nextPlayerId;
+            
+            if (currentTurnPlayerId === socket.id) {
+                currentPlayer.textContent = `Your turn, ${playerName}!`;
+            } else {
+                currentPlayer.textContent = `${data.nextPlayerName}'s turn`;
+            }
         });
 
         socket.on('gameWon', (data) => {
-            if (socket.id === data.winner) {
-                gameMessage.textContent = 'Congratulations! You clicked all safe squares!';
-                gameMessage.className = 'message success';
+            if (data.loser) {
+                // Someone won because they were the last player standing
+                const square = gameBoard.children[data.squareIndex];
+                if (square) {
+                    square.classList.add('lost');
+                    square.style.backgroundColor = 'red'; // Make the danger square red
+                }
+                
+                if (socket.id === data.winner) {
+                    gameMessage.textContent = 'Congratulations! You are the last player standing!';
+                    gameMessage.className = 'message success';
+                } else if (socket.id === data.loser) {
+                    gameMessage.textContent = 'You hit the danger square! Game over!';
+                    gameMessage.className = 'message error';
+                } else {
+                    gameMessage.textContent = `${data.loserName} was eliminated! ${data.winnerName} wins as the last player standing!`;
+                    gameMessage.className = 'message success';
+                }
             } else {
-                gameMessage.textContent = `Congratulations to ${data.winnerName} for winning!`;
-                gameMessage.className = 'message success';
+                // Someone won by clicking all safe squares
+                if (socket.id === data.winner) {
+                    gameMessage.textContent = 'Congratulations! You clicked all safe squares!';
+                    gameMessage.className = 'message success';
+                } else {
+                    gameMessage.textContent = `Congratulations to ${data.winnerName} for winning!`;
+                    gameMessage.className = 'message success';
+                }
             }
             
             restartGameBtn.style.display = isHost ? 'block' : 'none';
@@ -476,8 +526,8 @@
             const squareIndex = parseInt(event.target.dataset.index);
             socket.emit('squareClicked', { squareIndex });
             
-            event.target.classList.add('clicked');
-            currentTurnPlayerId = ''; // Wait for server to confirm
+            // Disable clicking until server confirms next turn
+            currentTurnPlayerId = '';
         }
 
         function handleDangerSquareSelection(event) {
