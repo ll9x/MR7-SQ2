@@ -28,6 +28,7 @@ io.on('connection', (socket) => {
             clickedSquares: [],
             playerNames: {},
             activePlayers: [socket.id], // Players still in the game
+            eliminatedPlayers: [], // Players eliminated in order
             currentTurn: 0 // Index of the player whose turn it is
         };
         
@@ -103,7 +104,14 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('gameStarted', { 
             boardSize: boardSize,
             currentPlayerId: currentPlayerId,
-            currentPlayerName: rooms[roomId].playerNames[currentPlayerId]
+            currentPlayerName: rooms[roomId].playerNames[currentPlayerId],
+            players: rooms[roomId].players.map(id => ({
+                id,
+                name: rooms[roomId].playerNames[id],
+                status: 'active'
+            })),
+            activePlayers: rooms[roomId].activePlayers,
+            eliminatedPlayers: []
         });
     });
 
@@ -132,26 +140,49 @@ io.on('connection', (socket) => {
             // Get current player index before elimination
             const currentPlayerIndex = rooms[roomId].activePlayers.indexOf(socket.id);
             
+            // Add player to eliminated list with elimination order
+            rooms[roomId].eliminatedPlayers.push({
+                id: socket.id,
+                name: rooms[roomId].playerNames[socket.id],
+                eliminationOrder: rooms[roomId].eliminatedPlayers.length + 1,
+                squareIndex: squareIndex
+            });
+            
             // Player is eliminated
             rooms[roomId].activePlayers = rooms[roomId].activePlayers.filter(id => id !== socket.id);
             
-            // Check if only one player remains
-            if (rooms[roomId].activePlayers.length === 1) {
-                // Game over, we have a winner
-                const winner = rooms[roomId].activePlayers[0];
-                io.to(roomId).emit('gameWon', {
-                    winner: winner,
-                    winnerName: rooms[roomId].playerNames[winner],
-                    loser: socket.id,
-                    loserName: rooms[roomId].playerNames[socket.id],
-                    squareIndex: squareIndex // Send the danger square index
-                });
+            // Check if game is over (only one player left or no players left)
+            if (rooms[roomId].activePlayers.length <= 1) {
+                rooms[roomId].gameState = 'finished';
+                if (rooms[roomId].activePlayers.length === 1) {
+                    const winnerId = rooms[roomId].activePlayers[0];
+                    const winnerName = rooms[roomId].playerNames[winnerId];
+                    io.to(roomId).emit('gameWon', {
+                        winner: winnerId,
+                        winnerName: winnerName,
+                        loser: socket.id,
+                        loserName: rooms[roomId].playerNames[socket.id],
+                        lastPlayerStanding: true,
+                        eliminatedPlayers: rooms[roomId].eliminatedPlayers,
+                        finalRanking: [...rooms[roomId].eliminatedPlayers.reverse(), {
+                            id: winnerId,
+                            name: winnerName,
+                            status: 'winner'
+                        }]
+                    });
+                } else {
+                    // All players eliminated (shouldn't happen in normal gameplay)
+                    io.to(roomId).emit('gameOver', { 
+                        message: 'All players eliminated!',
+                        eliminatedPlayers: rooms[roomId].eliminatedPlayers
+                    });
+                }
                 return;
             }
             
-            // Adjust currentTurn after player elimination
-            if (currentPlayerIndex <= rooms[roomId].currentTurn) {
-                rooms[roomId].currentTurn = Math.max(0, rooms[roomId].currentTurn - 1);
+            // Adjust current turn if necessary
+            if (rooms[roomId].currentTurn >= rooms[roomId].activePlayers.length) {
+                rooms[roomId].currentTurn = 0;
             }
             rooms[roomId].currentTurn = rooms[roomId].currentTurn % rooms[roomId].activePlayers.length;
             const nextPlayerId = rooms[roomId].activePlayers[rooms[roomId].currentTurn];
@@ -162,7 +193,10 @@ io.on('connection', (socket) => {
                 squareIndex: squareIndex,
                 nextPlayerId: nextPlayerId,
                 nextPlayerName: rooms[roomId].playerNames[nextPlayerId],
-                remainingPlayers: rooms[roomId].activePlayers.length
+                remainingPlayers: rooms[roomId].activePlayers.length,
+                eliminatedPlayers: rooms[roomId].eliminatedPlayers,
+                activePlayers: rooms[roomId].activePlayers,
+                eliminationOrder: rooms[roomId].eliminatedPlayers.length
             });
             return;
         } else {
@@ -204,6 +238,7 @@ io.on('connection', (socket) => {
         rooms[roomId].dangerSquare = -1;
         rooms[roomId].clickedSquares = [];
         rooms[roomId].activePlayers = [...rooms[roomId].players]; // Reset active players
+        rooms[roomId].eliminatedPlayers = []; // Reset eliminated players
         rooms[roomId].currentTurn = 0;
         
         io.to(roomId).emit('gameRestarted');

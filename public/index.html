@@ -113,6 +113,87 @@
             margin: 20px 0;
             text-align: left;
         }
+        
+        /* Enhanced Players List Styles */
+        .players-container {
+            background-color: #333;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            max-width: 400px;
+        }
+        
+        .players-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+            color: #fff;
+        }
+        
+        .player-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 8px;
+            background-color: #444;
+            transition: all 0.3s ease;
+        }
+        
+        .player-item.active {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .player-item.eliminated {
+            background-color: #dc3545;
+            color: white;
+            opacity: 0.8;
+        }
+        
+        .player-item.winner {
+            background-color: #28a745;
+            color: white;
+            box-shadow: 0 0 15px rgba(40, 167, 69, 0.5);
+            animation: winnerGlow 2s infinite alternate;
+        }
+        
+        .player-item.current-turn {
+            border: 3px solid #ffc107;
+            box-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+            animation: currentTurnPulse 1.5s infinite;
+        }
+        
+        @keyframes winnerGlow {
+            0% { box-shadow: 0 0 15px rgba(40, 167, 69, 0.5); }
+            100% { box-shadow: 0 0 25px rgba(40, 167, 69, 0.8); }
+        }
+        
+        @keyframes currentTurnPulse {
+            0% { border-color: #ffc107; }
+            50% { border-color: #ffed4e; }
+            100% { border-color: #ffc107; }
+        }
+        
+        .player-status {
+            margin-left: auto;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .turn-indicator {
+            margin-right: 8px;
+            font-size: 16px;
+        }
+        
+        .elimination-order {
+            font-size: 11px;
+            opacity: 0.8;
+            margin-left: 5px;
+        }
         #room-id-display {
             font-size: 20px;
             margin: 10px 0;
@@ -202,6 +283,13 @@
             <p id="current-player"></p>
             <p id="clicked-count"></p>
         </div>
+        
+        <!-- Enhanced Players List -->
+        <div class="players-container">
+            <div class="players-title">Players Status</div>
+            <div id="game-players-list"></div>
+        </div>
+        
         <div id="game-board"></div>
         <div id="game-message" class="message"></div>
         <button id="restart-game-btn" style="display: none;">Play Again</button>
@@ -246,6 +334,7 @@
         const gameMessage = document.getElementById('game-message');
         const currentPlayer = document.getElementById('current-player');
         const clickedCount = document.getElementById('clicked-count');
+        const gamePlayersList = document.getElementById('game-players-list');
 
         // Game elements
         const board = document.getElementById('board');
@@ -259,6 +348,9 @@
         let boardSize = 9;
         let dangerSquareIndex = -1;
         let currentTurnPlayerId = '';
+        let allPlayers = [];
+        let activePlayers = [];
+        let eliminatedPlayers = [];
 
         // Switch between screens
         function showScreen(screen) {
@@ -383,6 +475,14 @@
             createGameBoard(gameBoard, data.boardSize);
             currentTurnPlayerId = data.currentPlayerId;
             
+            // Store player data
+            allPlayers = data.players || [];
+            activePlayers = data.activePlayers || [];
+            eliminatedPlayers = data.eliminatedPlayers || [];
+            
+            // Update players list
+            updateGamePlayersList(activePlayers, eliminatedPlayers, currentTurnPlayerId);
+            
             if (currentTurnPlayerId === socket.id) {
                 currentPlayer.textContent = `Your turn, ${playerName}!`;
             } else {
@@ -405,6 +505,9 @@
             // Update whose turn it is
             currentTurnPlayerId = data.nextPlayerId;
             
+            // Update players list
+            updateGamePlayersList(activePlayers, eliminatedPlayers, currentTurnPlayerId);
+            
             if (currentTurnPlayerId === socket.id) {
                 currentPlayer.textContent = `Your turn, ${playerName}!`;
             } else {
@@ -417,6 +520,14 @@
             square.classList.add('lost');
             square.style.backgroundColor = 'red'; // Make the danger square red
             
+            // Update game data
+            activePlayers = data.activePlayers || [];
+            eliminatedPlayers = data.eliminatedPlayers || [];
+            currentTurnPlayerId = data.nextPlayerId;
+            
+            // Update players list
+            updateGamePlayersList(activePlayers, eliminatedPlayers, currentTurnPlayerId);
+            
             if (socket.id === data.eliminatedId) {
                 gameMessage.textContent = 'You hit the danger square! You are eliminated!';
                 gameMessage.className = 'message error';
@@ -424,9 +535,6 @@
                 gameMessage.textContent = `${data.eliminatedName} hit the danger square and was eliminated! ${data.remainingPlayers} players remaining.`;
                 gameMessage.className = 'message error';
             }
-            
-            // Update whose turn it is
-            currentTurnPlayerId = data.nextPlayerId;
             
             if (currentTurnPlayerId === socket.id) {
                 currentPlayer.textContent = `Your turn, ${playerName}!`;
@@ -436,6 +544,17 @@
         });
 
         socket.on('gameWon', (data) => {
+            // Update game data with final results
+            if (data.eliminatedPlayers) {
+                eliminatedPlayers = data.eliminatedPlayers;
+            }
+            if (data.lastPlayerStanding) {
+                activePlayers = [data.winner];
+            }
+            
+            // Show final players list with winner highlighted
+            updateGamePlayersList(activePlayers, eliminatedPlayers, '', data.winner);
+            
             if (data.loser) {
                 // Someone won because they were the last player standing
                 const square = gameBoard.children[data.squareIndex];
@@ -465,10 +584,19 @@
                 }
             }
             
+            // Clear current turn indicator
+            currentTurnPlayerId = '';
+            currentPlayer.textContent = 'Game Over!';
+            
             restartGameBtn.style.display = isHost ? 'block' : 'none';
         });
 
         socket.on('gameRestarted', () => {
+            // Reset game data
+            activePlayers = [];
+            eliminatedPlayers = [];
+            currentTurnPlayerId = '';
+            
             showScreen(lobbyScreen);
             gameMessage.textContent = '';
             lobbyMessage.textContent = 'Game restarted. Host can start a new game.';
@@ -534,6 +662,92 @@
             board.querySelectorAll('div').forEach(div => div.classList.remove('selected'));
             event.target.classList.add('selected');
             dangerSquareIndex = parseInt(event.target.dataset.index);
+        }
+        
+        // Enhanced Players List Update Function
+        function updateGamePlayersList(activePlayers, eliminatedPlayers, currentPlayerId, winner = null) {
+            gamePlayersList.innerHTML = '';
+            
+            // Create a combined list with proper ordering
+            const allPlayersList = [];
+            
+            // Add active players
+            activePlayers.forEach(playerId => {
+                const playerName = allPlayers.find(p => p.id === playerId)?.name || 'Unknown';
+                allPlayersList.push({
+                    id: playerId,
+                    name: playerName,
+                    status: 'active',
+                    isCurrentTurn: playerId === currentPlayerId
+                });
+            });
+            
+            // Add eliminated players (in reverse order - last eliminated first)
+            eliminatedPlayers.slice().reverse().forEach(eliminatedPlayer => {
+                allPlayersList.push({
+                    id: eliminatedPlayer.id,
+                    name: eliminatedPlayer.name,
+                    status: 'eliminated',
+                    eliminationOrder: eliminatedPlayer.eliminationOrder,
+                    isCurrentTurn: false
+                });
+            });
+            
+            // If there's a winner, mark them
+            if (winner) {
+                const winnerIndex = allPlayersList.findIndex(p => p.id === winner);
+                if (winnerIndex !== -1) {
+                    allPlayersList[winnerIndex].status = 'winner';
+                }
+            }
+            
+            // Create player items
+            allPlayersList.forEach(player => {
+                const playerItem = document.createElement('div');
+                playerItem.className = 'player-item';
+                
+                // Add status classes
+                if (player.status === 'active') {
+                    playerItem.classList.add('active');
+                } else if (player.status === 'eliminated') {
+                    playerItem.classList.add('eliminated');
+                } else if (player.status === 'winner') {
+                    playerItem.classList.add('winner');
+                }
+                
+                // Add current turn indicator
+                if (player.isCurrentTurn) {
+                    playerItem.classList.add('current-turn');
+                }
+                
+                // Create content
+                let content = '';
+                
+                // Turn indicator
+                if (player.isCurrentTurn) {
+                    content += '<span class="turn-indicator">▶</span>';
+                }
+                
+                // Player name
+                content += `<span>${player.name}${player.id === socket.id ? ' (You)' : ''}</span>`;
+                
+                // Status indicator
+                let statusText = '';
+                if (player.status === 'active') {
+                    statusText = 'Active';
+                } else if (player.status === 'eliminated') {
+                    statusText = `Eliminated #${player.eliminationOrder}`;
+                } else if (player.status === 'winner') {
+                    statusText = 'Winner! 🏆';
+                }
+                
+                if (statusText) {
+                    content += `<span class="player-status">${statusText}</span>`;
+                }
+                
+                playerItem.innerHTML = content;
+                gamePlayersList.appendChild(playerItem);
+            });
         }
     </script>
 </body>
