@@ -18,7 +18,6 @@ io.on('connection', (socket) => {
 
     socket.on('createRoom', (data) => {
         const roomId = generateRoomId();
-        console.log(`Creating room with ID: ${roomId}`);
         rooms[roomId] = {
             host: socket.id,
             players: [socket.id],
@@ -49,10 +48,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('joinRoom', (data) => {
-        const roomId = data.roomId.toUpperCase().trim(); // Ensure uppercase and no spaces
-        console.log(`Player ${socket.id} trying to join room: ${roomId}`);
-        console.log('Available rooms:', Object.keys(rooms));
-        
+        const roomId = data.roomId;
         if (!rooms[roomId]) {
             socket.emit('error', { message: 'Room not found' });
             return;
@@ -79,18 +75,6 @@ io.on('connection', (socket) => {
         rooms[roomId].activePlayers.push(socket.id);
         rooms[roomId].playerNames[socket.id] = data.playerName;
         
-        // Send success response to the joining player
-        socket.emit('joinedRoom', {
-            roomId: roomId,
-            playerName: data.playerName,
-            players: rooms[roomId].players.map(id => ({
-                id,
-                name: rooms[roomId].playerNames[id]
-            })),
-            maxPlayers: rooms[roomId].maxPlayers
-        });
-        
-        // Notify all players in the room about the new player
         io.to(roomId).emit('playerJoined', { 
             playerId: socket.id, 
             playerName: data.playerName,
@@ -179,7 +163,6 @@ io.on('connection', (socket) => {
                         loser: socket.id,
                         loserName: rooms[roomId].playerNames[socket.id],
                         lastPlayerStanding: true,
-                        squareIndex: squareIndex, // Include the danger square index
                         eliminatedPlayers: rooms[roomId].eliminatedPlayers,
                         finalRanking: [...rooms[roomId].eliminatedPlayers.reverse(), {
                             id: winnerId,
@@ -302,17 +285,7 @@ io.on('connection', (socket) => {
 
 function generateRoomId() {
     // Generate a more memorable 6-character code (uppercase letters and numbers)
-    let roomId;
-    do {
-        roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-        // Ensure it's exactly 6 characters
-        if (roomId.length < 6) {
-            roomId = roomId + Math.random().toString(36).substring(2, 8 - roomId.length).toUpperCase();
-        }
-        roomId = roomId.substring(0, 6); // Ensure exactly 6 characters
-    } while (rooms[roomId]); // Ensure unique room ID
-    
-    return roomId;
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
 const PORT = process.env.PORT || 3000;
