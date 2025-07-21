@@ -125,45 +125,45 @@
         <h1 id="game-title">Online Danger Square Game</h1>
         <img id="welcome-image" src="welcome-image.png" alt="Welcome Image">
         <p>Welcome to the Online Danger Square Game!</p>
-        <button id="create-session-btn">Create Session</button>
-        <button id="join-session-btn">Join Session</button>
+        <button id="create-room-btn">Create Room</button>
+        <button id="join-room-btn">Join Room</button>
     </div>
 
-    <!-- Create Session Screen -->
-    <div id="create-session-screen" class="screen">
-        <h2>Create Game Session</h2>
+    <!-- Create Room Screen -->
+    <div id="create-room-screen" class="screen">
+        <h2>Create Game Room</h2>
         <div>
             <label for="host-name">Your Name:</label>
             <input type="text" id="host-name" placeholder="Enter your name">
         </div>
         <div>
-            <label for="board-size-input">Number of Squares:</label>
-            <input type="number" id="board-size-input" min="2" max="25" value="9">
+            <label for="create-board-size">Number of Squares:</label>
+            <input type="number" id="create-board-size" min="2" max="25" value="9">
         </div>
-        <button id="create-session-confirm">Create Session</button>
+        <button id="create-room-confirm">Create Room</button>
         <button id="back-to-welcome-from-create">Back</button>
     </div>
 
-    <!-- Join Session Screen -->
-    <div id="join-session-screen" class="screen">
-        <h2>Join Game Session</h2>
+    <!-- Join Room Screen -->
+    <div id="join-room-screen" class="screen">
+        <h2>Join Game Room</h2>
         <div>
             <label for="player-name">Your Name:</label>
             <input type="text" id="player-name" placeholder="Enter your name">
         </div>
         <div>
-            <label for="session-id">Session ID:</label>
-            <input type="text" id="session-id" placeholder="Enter session ID">
+            <label for="room-id">Room ID:</label>
+            <input type="text" id="room-id" placeholder="Enter room ID">
         </div>
-        <button id="join-session-confirm">Join Session</button>
+        <button id="join-room-confirm">Join Room</button>
         <button id="back-to-welcome-from-join">Back</button>
     </div>
 
     <!-- Lobby Screen -->
     <div id="lobby-screen" class="screen">
         <h2>Game Lobby</h2>
-        <div id="room-id-display">Session ID: <span id="session-id-text"></span> 
-            <button id="copy-session-id">Copy</button>
+        <div id="room-id-display">Room ID: <span id="room-id-text"></span> 
+            <button id="copy-room-id">Copy</button>
         </div>
         <div id="players-list">
             <h3>Players:</h3>
@@ -173,6 +173,8 @@
         <button id="start-game-btn" style="display: none;">Start Game</button>
         <button id="leave-lobby-btn">Leave Lobby</button>
     </div>
+
+
 
     <!-- Choose Danger Square Screen -->
     <div id="danger-square-screen" class="screen">
@@ -202,17 +204,17 @@
         // DOM Elements
         const screens = document.querySelectorAll('.screen');
         const welcomeScreen = document.getElementById('welcome-screen');
-        const createSessionScreen = document.getElementById('create-session-screen');
-        const joinSessionScreen = document.getElementById('join-session-screen');
+        const createRoomScreen = document.getElementById('create-room-screen');
+        const joinRoomScreen = document.getElementById('join-room-screen');
         const lobbyScreen = document.getElementById('lobby-screen');
         const dangerSquareScreen = document.getElementById('danger-square-screen');
         const gameScreen = document.getElementById('game-screen');
 
         // Buttons
-        const createSessionBtn = document.getElementById('create-session-btn');
-        const joinSessionBtn = document.getElementById('join-session-btn');
-        const createSessionConfirmBtn = document.getElementById('create-session-confirm');
-        const joinSessionConfirmBtn = document.getElementById('join-session-confirm');
+        const createRoomBtn = document.getElementById('create-room-btn');
+        const joinRoomBtn = document.getElementById('join-room-btn');
+        const createRoomConfirmBtn = document.getElementById('create-room-confirm');
+        const joinRoomConfirmBtn = document.getElementById('join-room-confirm');
         const backToWelcomeFromCreateBtn = document.getElementById('back-to-welcome-from-create');
         const backToWelcomeFromJoinBtn = document.getElementById('back-to-welcome-from-join');
         const startGameBtn = document.getElementById('start-game-btn');
@@ -220,16 +222,15 @@
         const confirmDangerSquareBtn = document.getElementById('confirm-danger-square');
         const restartGameBtn = document.getElementById('restart-game-btn');
         const leaveGameBtn = document.getElementById('leave-game-btn');
-        const copySessionIdBtn = document.getElementById('copy-session-id');
+        const copyRoomIdBtn = document.getElementById('copy-room-id');
 
         // Inputs
         const hostNameInput = document.getElementById('host-name');
         const playerNameInput = document.getElementById('player-name');
-        const sessionIdInput = document.getElementById('session-id');
-        const boardSizeInput = document.getElementById('board-size-input');
+        const roomIdInput = document.getElementById('room-id');
 
         // Display elements
-        const sessionIdText = document.getElementById('session-id-text');
+        const roomIdText = document.getElementById('room-id-text');
         const playersUl = document.getElementById('players-ul');
         const lobbyMessage = document.getElementById('lobby-message');
         const gameMessage = document.getElementById('game-message');
@@ -242,7 +243,7 @@
 
         // Socket.io connection
         const socket = io();
-        let sessionId = '';
+        let roomId = '';
         let isHost = false;
         let playerName = '';
         let boardSize = 9;
@@ -256,30 +257,30 @@
         }
 
         // Event listeners
-        createSessionBtn.addEventListener('click', () => showScreen(createSessionScreen));
-        joinSessionBtn.addEventListener('click', () => showScreen(joinSessionScreen));
+        createRoomBtn.addEventListener('click', () => showScreen(createRoomScreen));
+        joinRoomBtn.addEventListener('click', () => showScreen(joinRoomScreen));
         
         backToWelcomeFromCreateBtn.addEventListener('click', () => showScreen(welcomeScreen));
         backToWelcomeFromJoinBtn.addEventListener('click', () => showScreen(welcomeScreen));
         
         leaveLobbyBtn.addEventListener('click', () => {
-            socket.emit('leaveSession');
+            socket.emit('leaveRoom');
             showScreen(welcomeScreen);
         });
         
         leaveGameBtn.addEventListener('click', () => {
-            socket.emit('leaveSession');
+            socket.emit('leaveRoom');
             showScreen(welcomeScreen);
         });
 
-        copySessionIdBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText(sessionIdText.textContent);
-            alert('Session ID copied to clipboard!');
+        copyRoomIdBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(roomIdText.textContent);
+            alert('Room ID copied to clipboard!');
         });
 
-        createSessionConfirmBtn.addEventListener('click', () => {
+        createRoomConfirmBtn.addEventListener('click', () => {
             const name = hostNameInput.value.trim();
-            const size = parseInt(boardSizeInput.value);
+            const size = parseInt(document.getElementById('create-board-size').value);
             
             if (!name) {
                 alert('Please enter your name');
@@ -287,38 +288,38 @@
             }
             
             if (isNaN(size) || size < 2 || size > 25) {
-                alert('Please enter a valid number between 2 and 25');
+                alert('Please enter a valid number of squares between 2 and 25');
                 return;
             }
             
             playerName = name;
-            boardSize = size;
             isHost = true;
-            socket.emit('createSession', { 
-                playerName: name,
-                boardSize: size
-            });
+            boardSize = size;
+            socket.emit('createRoom', { playerName: name, boardSize: size });
         });
 
-        joinSessionConfirmBtn.addEventListener('click', () => {
+        joinRoomConfirmBtn.addEventListener('click', () => {
             const name = playerNameInput.value.trim();
-            const session = sessionIdInput.value.trim().toUpperCase();
+            const room = roomIdInput.value.trim().toUpperCase();
             
-            if (!name || !session) {
-                alert('Please enter both your name and session ID');
+            if (!name || !room) {
+                alert('Please enter both your name and room ID');
                 return;
             }
             
             playerName = name;
-            socket.emit('joinSession', { 
-                sessionId: session, 
+            socket.emit('joinRoom', { 
+                roomId: room, 
                 playerName: name 
             });
         });
 
         startGameBtn.addEventListener('click', () => {
-            socket.emit('startGame');
+            // Skip board size selection since it's already set during room creation
+            socket.emit('startGame', { boardSize: boardSize });
         });
+
+
 
         confirmDangerSquareBtn.addEventListener('click', () => {
             if (dangerSquareIndex === -1) {
@@ -334,13 +335,13 @@
         });
 
         // Socket.io event handlers
-        socket.on('sessionCreated', (data) => {
-            sessionId = data.sessionId;
-            boardSize = data.boardSize;
-            sessionIdText.textContent = sessionId;
+        socket.on('roomCreated', (data) => {
+            roomId = data.roomId;
+            roomIdText.textContent = roomId;
             updatePlayersList([{ id: socket.id, name: playerName }]);
-            lobbyMessage.textContent = 'Waiting for players to join...';
+            lobbyMessage.textContent = 'Room created! Share the code with others to join.';
             startGameBtn.style.display = isHost ? 'block' : 'none';
+            boardSize = data.boardSize;
             showScreen(lobbyScreen);
         });
 
