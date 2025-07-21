@@ -18,6 +18,7 @@ io.on('connection', (socket) => {
 
     socket.on('createRoom', (data) => {
         const roomId = generateRoomId();
+        console.log(`Creating room with ID: ${roomId}`);
         rooms[roomId] = {
             host: socket.id,
             players: [socket.id],
@@ -48,7 +49,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('joinRoom', (data) => {
-        const roomId = data.roomId;
+        const roomId = data.roomId.toUpperCase().trim(); // Ensure uppercase and no spaces
+        console.log(`Player ${socket.id} trying to join room: ${roomId}`);
+        console.log('Available rooms:', Object.keys(rooms));
+        
         if (!rooms[roomId]) {
             socket.emit('error', { message: 'Room not found' });
             return;
@@ -75,6 +79,18 @@ io.on('connection', (socket) => {
         rooms[roomId].activePlayers.push(socket.id);
         rooms[roomId].playerNames[socket.id] = data.playerName;
         
+        // Send success response to the joining player
+        socket.emit('joinedRoom', {
+            roomId: roomId,
+            playerName: data.playerName,
+            players: rooms[roomId].players.map(id => ({
+                id,
+                name: rooms[roomId].playerNames[id]
+            })),
+            maxPlayers: rooms[roomId].maxPlayers
+        });
+        
+        // Notify all players in the room about the new player
         io.to(roomId).emit('playerJoined', { 
             playerId: socket.id, 
             playerName: data.playerName,
@@ -286,7 +302,17 @@ io.on('connection', (socket) => {
 
 function generateRoomId() {
     // Generate a more memorable 6-character code (uppercase letters and numbers)
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
+    let roomId;
+    do {
+        roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        // Ensure it's exactly 6 characters
+        if (roomId.length < 6) {
+            roomId = roomId + Math.random().toString(36).substring(2, 8 - roomId.length).toUpperCase();
+        }
+        roomId = roomId.substring(0, 6); // Ensure exactly 6 characters
+    } while (rooms[roomId]); // Ensure unique room ID
+    
+    return roomId;
 }
 
 const PORT = process.env.PORT || 3000;

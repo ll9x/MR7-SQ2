@@ -432,6 +432,13 @@
                 return;
             }
             
+            // Validate room ID format (should be 6 characters)
+            if (room.length !== 6) {
+                alert('Room ID should be exactly 6 characters');
+                return;
+            }
+            
+            console.log(`Attempting to join room: ${room}`);
             playerName = name;
             socket.emit('joinRoom', { 
                 roomId: room, 
@@ -467,7 +474,18 @@
         });
 
         socket.on('error', (data) => {
-            alert(data.message);
+            console.error('Server error:', data.message);
+            alert(`خطأ: ${data.message}\n\nتأكد من:\n- صحة Room ID\n- أن الغرفة لم تبدأ اللعب بعد\n- أن الغرفة ليست ممتلئة`);
+        });
+
+        socket.on('joinedRoom', (data) => {
+            console.log('Successfully joined room:', data.roomId);
+            roomId = data.roomId;
+            roomIdText.textContent = roomId;
+            updatePlayersList(data.players);
+            lobbyMessage.textContent = `تم الانضمام بنجاح إلى الغرفة: ${roomId}`;
+            startGameBtn.style.display = 'none'; // Only host can start
+            showScreen(lobbyScreen);
         });
 
         socket.on('playerJoined', (data) => {
